@@ -30,8 +30,8 @@ try:
 except ImportError:
     pass  # python-dotenv is optional; the env var can also be set in the shell
 
-# Configurable default; override with --model. See Anthropic's docs for current IDs.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+# Configurable default; override with --model or CLAUDE_MODEL. See Anthropic's docs for IDs.
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
 # Long transcripts are summarized in pieces, then those summaries are combined.
 # ~80k characters per chunk keeps each request well within the context window.
@@ -110,32 +110,39 @@ def summarize(text, client, model=DEFAULT_MODEL):
     return _ask_claude(client, model, COMBINE_INSTRUCTIONS, "\n\n---\n\n".join(partials))
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Summarize a transcript with Claude.")
-    ap.add_argument("input", help="path to the transcript text file")
-    ap.add_argument("-o", "--output", help="output .md path (default: <input>.summary.md)")
-    ap.add_argument("--model", default=DEFAULT_MODEL, help=f"Anthropic model (default: {DEFAULT_MODEL})")
-    args = ap.parse_args()
-
+def summarize_file(input_path, output_path=None, model=DEFAULT_MODEL):
+    """Summarize a transcript file to a Markdown file. Returns the output path."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("Error: set the ANTHROPIC_API_KEY environment variable first.")
+        raise RuntimeError("ANTHROPIC_API_KEY is not set (see .env / README).")
 
-    with open(args.input, "r", encoding="utf-8") as f:
+    with open(input_path, "r", encoding="utf-8") as f:
         text = f.read().strip()
     if not text:
-        sys.exit(f"Error: {args.input} is empty.")
+        raise RuntimeError(f"{input_path} is empty.")
 
-    output = args.output or os.path.splitext(args.input)[0] + ".summary.md"
+    output = output_path or os.path.splitext(input_path)[0] + ".summary.md"
     client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the environment
-
-    summary = summarize(text, client, model=args.model)
+    summary = summarize(text, client, model=model)
 
     parent = os.path.dirname(output)
     if parent:
         os.makedirs(parent, exist_ok=True)
     with open(output, "w", encoding="utf-8") as f:
         f.write(summary + "\n")
-    print(f"\nSaved summary to {output}")
+    print(f"Saved summary to {output}")
+    return output
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Summarize a transcript with Claude.")
+    ap.add_argument("input", help="path to the transcript text file")
+    ap.add_argument("-o", "--output", help="output .md path (default: <input>.summary.md)")
+    ap.add_argument("--model", default=DEFAULT_MODEL, help=f"Anthropic model (default: {DEFAULT_MODEL})")
+    args = ap.parse_args()
+    try:
+        summarize_file(args.input, args.output, model=args.model)
+    except RuntimeError as e:
+        sys.exit(f"Error: {e}")
 
 
 if __name__ == "__main__":

@@ -26,106 +26,207 @@ Recording and transcription are **fully local**. Only the optional summarize ste
 
 ---
 
-## Requirements
+## Quick start
 
-- **Windows** for the built-in recording (it uses WASAPI loopback). Transcription and
-  summarization work on any OS.
-- **Python 3.13** (a `venv/` is included).
-- An **NVIDIA GPU with CUDA** for fast transcription (`device="cuda"`). CPU works too — see
-  [CPU-only](#cpu-only-no-gpu).
-- The `large-v3` Whisper model (~3 GB) downloads automatically on first run and is cached.
+```powershell
+# 1. One-time setup (creates venv, installs everything, makes your .env)
+powershell -ExecutionPolicy Bypass -File setup.ps1
+
+# 2. (optional) open .env and paste your Anthropic API key for summaries
+
+# 3. Run the whole pipeline — record now, then auto transcribe + summarize
+.\venv\Scripts\python.exe run.py
+```
+
+Or just **double-click `run.bat`**. It records until you press Enter, then transcribes and
+summarizes, dropping the results in `recordings/`, `transcripts/`, and `summaries/`.
 
 ---
 
-## Setup
+## Setup & configuration
 
+Everything below is handled by `setup.ps1`; this section explains what it does and what you
+can tweak, so you can do it manually or troubleshoot.
+
+### 1. Prerequisites
+- **Windows** for the built-in recording (it uses WASAPI loopback). Transcription and
+  summarization work on any OS.
+- **Python 3.13** — install from [python.org](https://www.python.org/downloads/) and check
+  "Add Python to PATH" during install.
+- *(Optional)* an **NVIDIA GPU** for fast transcription. No GPU (or an AMD GPU) is fine — it
+  falls back to CPU automatically.
+
+### 2. Create the environment & install dependencies
 ```powershell
-# from the project root
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+The `large-v3` Whisper model (~3 GB) downloads automatically the first time you transcribe and
+is cached after that.
 
-For the **summarize** step, set your Anthropic API key (get one at
-https://console.anthropic.com). Either copy `.env.example` to `.env` and fill it in:
-
+### 3. API key for summaries (optional)
+Summaries use Claude. Copy `.env.example` to `.env` and add your key (from
+[console.anthropic.com](https://console.anthropic.com)):
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+No key? Just run with `--no-summarize` to get recordings + transcripts only.
 
-…or set it in your shell:
+### 4. Choose your transcription model / device
+The defaults work for most people (auto-detect GPU, best model). Override per run with flags,
+or persistently in `.env`:
 
+| Setting | `.env` variable | Flag | Options |
+|---|---|---|---|
+| Whisper model | `WHISPER_MODEL` | `--model` | `large-v3` (best), `medium`, `small`, `base`, `tiny` (smaller = faster, less accurate) |
+| Device | `WHISPER_DEVICE` | `--device` | `auto` (default), `cuda` (force NVIDIA), `cpu` (force CPU) |
+| Summary model | `CLAUDE_MODEL` | `--claude-model` | any Anthropic model id |
+
+**Which to pick:**
+- **NVIDIA GPU:** leave defaults (`auto` → CUDA, `large-v3`). Fast and most accurate.
+- **No GPU / AMD GPU / Mac:** it auto-falls back to CPU. `large-v3` on CPU is accurate but
+  slow (~real-time); for quicker results use a smaller model, e.g. `--model medium` or
+  `--model small`. (faster-whisper's GPU backend is NVIDIA-only, so AMD GPUs use the CPU.)
+
+Example:
 ```powershell
-$env:ANTHROPIC_API_KEY="sk-ant-..."     # this session
-setx ANTHROPIC_API_KEY "sk-ant-..."     # persist for new terminals
+.\venv\Scripts\python.exe run.py --device cpu --model medium
 ```
 
-The GPU build of faster-whisper needs cuBLAS / cuDNN. [transcribe.py](transcribe.py) prepends the
-bundled `nvidia\cublas\bin` and `nvidia\cudnn\bin` folders to `PATH` so the DLLs load on
-Windows. If you hit a "could not load cudnn" error, make sure those pip packages are
-installed (they're in `requirements.txt`):
-
+### 5. CUDA libraries (NVIDIA only)
+The GPU path needs cuBLAS / cuDNN, which ship as the `nvidia-cublas-cu12` and
+`nvidia-cudnn-cu12` pip packages (already in `requirements.txt`). [transcribe.py](transcribe.py)
+locates them inside your environment automatically and adds them to the DLL search path — no
+manual path editing needed. If you ever see a "could not load cudnn" error, reinstall them:
 ```powershell
-pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+.\venv\Scripts\python.exe -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
-
-> Note: that `PATH` patch in [transcribe.py](transcribe.py) uses an absolute `D:\audio_transcribe\...`
-> path. If you clone the project elsewhere, update those two lines.
 
 ---
 
 ## Usage
 
-### Step 1 — Record the audio
+> **The easy way:** `python run.py` (or double-click `run.bat`) does record → transcribe →
+> summarize in one go. The sections below describe running each stage on its own, which is
+> handy for processing existing files or customizing a step.
 
-Pick whichever fits. Both capture **system audio + your microphone mixed** into one `.wav`,
-the way OBS mixes "Desktop Audio" + "Mic".
-
-**A. Auto-record Zoom meetings** ([watch_zoom.py](watch_zoom.py)) — hands-off. Leave it
-running; it watches for Zoom's in-meeting process (`CptHost.exe`, which only exists while
-you're *in* a meeting), pops a Windows notification, records, and stops when the meeting ends.
+### One-command pipeline (`run.py`)
 
 ```powershell
-python watch_zoom.py                # saves recordings\zoom_<timestamp>.wav
-python watch_zoom.py --transcribe   # also transcribe automatically when the meeting ends
+python run.py                  # record now (Enter to stop) -> transcribe -> summarize
+python run.py --seconds 3600   # record 1 hour, then transcribe + summarize
+python run.py meeting.wav      # process an existing audio file (skip recording)
+python run.py --zoom           # auto-record EVERY Zoom meeting, then transcribe + summarize
+python run.py --no-summarize   # stop after transcribing (no API key needed)
+python run.py --name lesson1   # control the output base name
 ```
 
-**B. Manual recording** ([recorder.py](recorder.py)) — for in-person classes or any session:
+## Running each tool separately
+
+`run.py` ties everything together, but each stage is its own script you can run on its own —
+useful for recording without processing, transcribing a file you already have, or
+re-summarizing an existing transcript. (Examples below assume the venv is active, i.e.
+`.\venv\Scripts\Activate.ps1`; otherwise prefix commands with `.\venv\Scripts\python.exe`.)
+
+### `run.py` — full pipeline
+
+`python run.py [input] [options]`
+
+| Argument | Description |
+|---|---|
+| `input` | *(optional)* existing audio file to process; if omitted, records first |
+| `--zoom` | continuously auto-record every Zoom meeting, then process each |
+| `--seconds N` | record for N seconds instead of until you press Enter |
+| `--name NAME` | base name for the output files (default: a timestamp) |
+| `--no-summarize` | stop after transcribing (no API key needed) |
+| `--no-mic` | record system audio only |
+| `--no-system` | record microphone only |
+| `--model NAME` | Whisper model (see transcribe.py below) |
+| `--device DEV` | `auto` / `cuda` / `cpu` |
+| `--claude-model NAME` | Anthropic model for the summary |
+
+### `recorder.py` — record audio only
+
+Captures **system audio + your microphone mixed** into one `.wav`, the way OBS mixes
+"Desktop Audio" + "Mic". The `output` path is required.
+
+`python recorder.py <output.wav> [options]`
+
+| Argument | Description |
+|---|---|
+| `output` | **(required)** path to write the `.wav` to |
+| `--seconds N` | record for N seconds; omit to record until you press **Enter** |
+| `--no-mic` | record system audio only (no microphone) |
+| `--no-system` | record microphone only (no system audio) |
 
 ```powershell
-python recorder.py recordings\lesson.wav              # stop with Enter
-python recorder.py recordings\lesson.wav --seconds 3600   # auto-stop after 1 hour
-python recorder.py recordings\lesson.wav --no-mic     # system audio only
-python recorder.py recordings\lesson.wav --no-system  # mic only
+python recorder.py recordings\lesson.wav                 # stop with Enter
+python recorder.py recordings\lesson.wav --seconds 3600  # auto-stop after 1 hour
+python recorder.py recordings\lesson.wav --no-mic        # system audio only
 ```
 
-**C. Bring your own file** — already have audio from your phone, OBS, etc.? Skip to Step 2.
+### `watch_zoom.py` — auto-record Zoom meetings
 
-### Step 2 — Transcribe to text
+Runs in the background and watches for Zoom's in-meeting process (`CptHost.exe`, which only
+exists while you're *in* a meeting). On detection it pops a Windows notification, records
+system + mic, and stops when the meeting ends. Saves to `recordings\zoom_<timestamp>.wav`.
+Stop the watcher with **Ctrl+C**. (Takes no positional arguments.)
+
+`python watch_zoom.py [--transcribe]`
+
+| Argument | Description |
+|---|---|
+| `--transcribe` | also transcribe each recording when the meeting ends |
+
+```powershell
+python watch_zoom.py                # record only
+python watch_zoom.py --transcribe   # record + transcribe each meeting
+```
+> For record + transcribe **+ summarize** of every meeting, use `python run.py --zoom`.
+
+### `transcribe.py` — audio → text
+
+Runs faster-whisper, **auto-detects the language** (no language flag — important when you
+record different languages), and uses **VAD** to skip silence so quiet stretches don't
+produce hallucinated text. Writes timestamped lines like `[0:01:23] some spoken text`.
+
+`python transcribe.py <input> [options]`
+
+| Argument | Description |
+|---|---|
+| `input` | **(required)** audio file to transcribe (`.wav`/`.mp3`/`.m4a`/…) |
+| `-o`, `--output PATH` | output transcript path (default: `transcript.txt`) |
+| `--model NAME` | `large-v3` (default, best), `medium`, `small`, `base`, `tiny` |
+| `--device DEV` | `auto` (default), `cuda` (force NVIDIA), `cpu` (force CPU) |
 
 ```powershell
 python transcribe.py recordings\lesson.wav
-python transcribe.py recordings\lesson.wav -o transcripts\lesson.txt   # choose output
+python transcribe.py recordings\lesson.wav -o transcripts\lesson.txt
+python transcribe.py recordings\lesson.wav --device cpu --model medium
 ```
 
-- Runs on your GPU, **auto-detects the language** (no language flag — important when you
-  record different languages), and uses **VAD** (`vad_filter=True`) to skip silence so quiet
-  stretches don't produce hallucinated text.
-- Writes timestamped lines like `[0:01:23] some spoken text` (default: `transcript.txt`).
-
-### Step 3 — Summarize into notes
-
-```powershell
-python summarize.py transcript.txt
-python summarize.py transcript.txt -o summaries\lesson.md
-python summarize.py transcript.txt --model claude-opus-4-8   # max quality
-```
+### `summarize.py` — transcript → notes
 
 Sends the transcript to Claude and writes Markdown notes with **Main topics**, **Key
 takeaways**, **Action items / homework**, and **Questions & sticking points**. Long
 transcripts are summarized in chunks and then combined, so multi-hour sessions don't exceed
-the context window. Default model is `claude-sonnet-4-6` (good quality/cost balance).
+the context window. Requires `ANTHROPIC_API_KEY` (see [Setup](#3-api-key-for-summaries-optional)).
 
-### Full example
+`python summarize.py <input> [options]`
+
+| Argument | Description |
+|---|---|
+| `input` | **(required)** transcript text file |
+| `-o`, `--output PATH` | output `.md` path (default: `<input>.summary.md`) |
+| `--model NAME` | Anthropic model (default: `claude-sonnet-4-6`; e.g. `claude-opus-4-8` for max quality) |
+
+```powershell
+python summarize.py transcript.txt
+python summarize.py transcript.txt -o summaries\lesson.md
+python summarize.py transcript.txt --model claude-opus-4-8
+```
+
+### Full manual example (all three stages)
 
 ```powershell
 .\venv\Scripts\Activate.ps1
@@ -166,14 +267,12 @@ The recorder is built to be reliable for long, multi-hour sessions:
 
 ### CPU-only (no GPU)
 
-Edit [transcribe.py](transcribe.py):
+No configuration needed — `--device auto` (the default) falls back to CPU when no NVIDIA GPU
+is present. To force it, or to speed it up with a smaller model:
 
-```python
-model = WhisperModel("large-v3", device="cpu", compute_type="int8")
+```powershell
+python run.py --device cpu --model medium
 ```
-
-`int8` keeps it reasonably fast on CPU; a smaller model (`medium`, `small`) trades accuracy
-for speed.
 
 ---
 
@@ -181,15 +280,19 @@ for speed.
 
 ```
 audio_transcribe/
+├── run.py               # ONE-COMMAND pipeline: record -> transcribe -> summarize
+├── run.bat              # double-click launcher for run.py
+├── setup.ps1            # one-time setup (venv + deps + .env)
 ├── recorder.py          # capture system audio + mic to a WAV (OBS-style)
 ├── watch_zoom.py        # auto-record Zoom meetings on detection
-├── transcribe.py              # transcribe audio → timestamped text (faster-whisper, GPU)
-├── summarize.py         # transcript → Markdown notes (Claude)
+├── transcribe.py        # transcribe audio -> timestamped text (faster-whisper)
+├── summarize.py         # transcript -> Markdown notes (Claude)
 ├── requirements.txt     # Python dependencies
-├── .env.example         # template for ANTHROPIC_API_KEY
+├── .env.example         # template for API key + optional config
 ├── recordings/          # captured audio (gitignored)
-├── summaries/           # generated notes, by subject (english/, french/)
-└── venv/                # Python 3.13 virtual environment
+├── transcripts/         # generated transcripts (gitignored)
+├── summaries/           # generated notes
+└── venv/                # Python virtual environment
 ```
 
 ---

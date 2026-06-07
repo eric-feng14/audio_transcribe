@@ -44,10 +44,10 @@ def _notify(title, message):
         print(f"[{title}] {message}")
 
 
-def _record_meeting(auto_transcribe):
+def _record_meeting(on_saved=None):
     stamp = dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     wav_path = RECORDINGS_DIR / f"zoom_{stamp}.wav"
-    _notify("Recording started", f"Zoom meeting detected → {wav_path.name}")
+    _notify("Recording started", f"Zoom meeting detected -> {wav_path.name}")
 
     stop = threading.Event()
     rec = threading.Thread(
@@ -61,20 +61,25 @@ def _record_meeting(auto_transcribe):
 
     _notify("Recording saved", wav_path.name)
     print(f"Saved {wav_path}")
-    if auto_transcribe:
-        try:
-            transcribe.transcribe(str(wav_path), str(wav_path.with_suffix(".txt")))
-        except Exception as e:
-            print(f"Transcription failed ({e}). Run: python transcribe.py {wav_path}")
+    if on_saved is not None:
+        on_saved(wav_path)
 
 
-def watch(auto_transcribe=False):
+def watch(on_saved=None):
+    """Watch for Zoom meetings; record each one. on_saved(wav_path) runs after save."""
     RECORDINGS_DIR.mkdir(exist_ok=True)
     print(f"Watching for Zoom meetings (every {POLL_SECONDS}s). Ctrl+C to quit.")
     while True:
         if _meeting_active():
-            _record_meeting(auto_transcribe)
+            _record_meeting(on_saved)
         time.sleep(POLL_SECONDS)
+
+
+def _transcribe_saved(wav_path):
+    try:
+        transcribe.transcribe(str(wav_path), str(wav_path.with_suffix(".txt")))
+    except Exception as e:
+        print(f"Transcription failed ({e}). Run: python transcribe.py {wav_path}")
 
 
 def main_cli():
@@ -82,7 +87,7 @@ def main_cli():
     ap.add_argument("--transcribe", action="store_true", help="transcribe each recording when the meeting ends")
     args = ap.parse_args()
     try:
-        watch(auto_transcribe=args.transcribe)
+        watch(on_saved=_transcribe_saved if args.transcribe else None)
     except KeyboardInterrupt:
         print("\nStopped watching.")
 
