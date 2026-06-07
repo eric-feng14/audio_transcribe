@@ -1,0 +1,11 @@
+faster-whisper
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+# Recording (Windows system audio + mic) and Zoom auto-detect
+PyAudioWPatch
+numpy
+psutil
+windows-toasts
+# Summarization
+anthropic
+python-dotenv

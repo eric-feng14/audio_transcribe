@@ -1,0 +1,37 @@
+# Virtual environment
+venv/
+.venv/
+
+# Secrets / local config
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Audio recordings & transcripts (large / private)
+recordings/
+*.wav
+*.mp3
+*.m4a
+*.flac
+transcript.txt
+transcripts/
+
+# Generated summaries (uncomment to keep them out of git)
+# summaries/
+
+# Whisper model cache (if stored in-repo)
+models/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+#Other
+.claude/
+summaries/
