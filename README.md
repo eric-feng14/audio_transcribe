@@ -12,6 +12,33 @@ record (recorder.py / watch_zoom.py)  ──►  transcribe (transcribe.py)  ─
 
 ---
 
+## ⬇️ Download & run (no setup)
+
+Want to try it without installing Python or anything else? Grab the prebuilt Windows
+executable from the **[latest release](https://github.com/eric-feng14/audio_transcribe/releases/latest)**:
+
+**[⬇ audio_transcribe-windows-x64.zip](https://github.com/eric-feng14/audio_transcribe/releases/latest/download/audio_transcribe-windows-x64.zip)**
+
+1. Unzip the folder (keep all the files together).
+2. Open PowerShell or Command Prompt in that folder.
+3. Run it:
+   ```powershell
+   .\audio_transcribe.exe meeting.wav     # transcribe an existing audio file
+   .\audio_transcribe.exe                 # record now (Enter to stop), then transcribe
+   .\audio_transcribe.exe --help          # all options
+   ```
+
+The download runs on **CPU** and defaults to the `small` Whisper model so it works on any
+Windows machine with zero setup (first run downloads the model, ~0.5 GB, and caches it). For
+GPU acceleration and the best `large-v3` model, run from source as described below — or pass
+`--model large-v3` to the exe for higher accuracy on CPU. Summaries still need an
+`ANTHROPIC_API_KEY` (set it in your shell); without one it transcribes and skips the summary.
+
+> Building from source instead? See [Setup & configuration](#setup--configuration). To
+> reproduce the released executable yourself, see [Building the executable](#building-the-executable).
+
+---
+
 ## Why this exists
 
 You sit through a lot of spoken content worth keeping: tutoring classes, lectures, Zoom
@@ -288,12 +315,34 @@ audio_transcribe/
 ├── transcribe.py        # transcribe audio -> timestamped text (faster-whisper)
 ├── summarize.py         # transcript -> Markdown notes (Claude)
 ├── requirements.txt     # Python dependencies
+├── pyinstaller_entry.py # entry point for the bundled .exe (CPU defaults)
+├── audio_transcribe.spec# PyInstaller build recipe for the release exe
 ├── .env.example         # template for API key + optional config
 ├── recordings/          # captured audio (gitignored)
 ├── transcripts/         # generated transcripts (gitignored)
 ├── summaries/           # generated notes
 └── venv/                # Python virtual environment
 ```
+
+---
+
+## Building the executable
+
+The [downloadable release](#-download--run-no-setup) is built with
+[PyInstaller](https://pyinstaller.org/) from [pyinstaller_entry.py](pyinstaller_entry.py)
+(a thin wrapper that defaults the bundled app to CPU + the `small` model) using
+[audio_transcribe.spec](audio_transcribe.spec). To reproduce it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File setup.ps1   # venv + deps (once)
+.\venv\Scripts\python.exe -m pip install pyinstaller
+.\venv\Scripts\pyinstaller.exe audio_transcribe.spec --clean --noconfirm
+```
+
+The app lands in `dist\audio_transcribe\` (a single folder with `audio_transcribe.exe`); zip
+that folder to produce the release asset. The CUDA libraries are intentionally **not** bundled
+(they're multiple GB), which is why the prebuilt exe runs on CPU; running from source still
+uses your GPU automatically.
 
 ---
 

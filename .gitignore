@@ -35,3 +35,9 @@ Thumbs.db
 #Other
 .claude/
 summaries/
+
+# PyInstaller build artifacts (the built app is published to GitHub Releases)
+build/
+dist/
+build_log.txt
+*.raw.wav
