@@ -1,105 +1,79 @@
-# 🎙️ audio_transcribe
+During meetings, we may often forget a specific detail that someone mentioned. The purpose of this project is to ensure that you're not missing anything from your meetings, so that you're keeping up efficiently and productively.
 
-Record a class, meeting, or tutoring session → transcribe it to text **locally** with
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) → summarize the transcript into
-clean notes with an LLM. The audio never leaves your machine for the transcription step, and
-it works for **any language** Whisper supports.
+You sit through a lot of spoken content worth keeping: tutoring classes, lectures, Zoom meetings, stand-ups. Taking notes live is time-consuming, distracting, and lossy. This project lets you:
 
-```
-record (recorder.py / watch_zoom.py)  ──►  transcribe (transcribe.py)  ──►  summarize (summarize.py)
-        system audio + mic, like OBS         faster-whisper, GPU         Claude → Markdown notes
-```
+1. Record the session (built-in capture, or bring your own .mp3/.wav/.m4a (eg from OBS)).
+2. Transcribe it to text on your own GPU/CPU! A private, free, multilingual solution.
+3. [optional] Summarize the transcript into structured notes (topics, takeaways, action items).
+
+> **Note:** recording, and transcription are fully local, but the summarizaiton step relies on an LLM API key. If you don't know what that is, you can just paste the transcript text file into an LLM chatbox.
 
 ---
 
-## ⬇️ Download & run (no setup)
+## Process
 
-Want to try it without installing Python or anything else? Grab the prebuilt Windows
-executable from the **[latest release](https://github.com/eric-feng14/audio_transcribe/releases/latest)**:
+Record a class/meeting/tutoring session/etc, then transcribe it locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper), which is then sumarized into clean notes by an LLM like ChatGPT, Gemini, Claude, etc.
 
-**[⬇ audio_transcribe-windows-x64.zip](https://github.com/eric-feng14/audio_transcribe/releases/latest/download/audio_transcribe-windows-x64.zip)**
+Furthermore, the audio recorded is entirely private on your machine: transcription occurs locally. It also works for any language the OpenAI's whisper supports.
 
-1. Unzip the folder (keep all the files together).
-2. Open PowerShell or Command Prompt in that folder.
-3. Run it:
-   ```powershell
-   .\audio_transcribe.exe meeting.wav     # transcribe an existing audio file
-   .\audio_transcribe.exe                 # record now (Enter to stop), then transcribe
-   .\audio_transcribe.exe --help          # all options
-   ```
+> To try this project without installing any dependencies, [download the prebuilt windows exe!](https://github.com/eric-feng14/audio_transcribe/releases/latest)
+>
+> When testing the demo build, make sure to follow the README embedded!
 
-The download runs on **CPU** and defaults to the `small` Whisper model so it works on any
-Windows machine with zero setup (first run downloads the model, ~0.5 GB, and caches it). For
-GPU acceleration and the best `large-v3` model, run from source as described below — or pass
-`--model large-v3` to the exe for higher accuracy on CPU. Summaries still need an
-`ANTHROPIC_API_KEY` (set it in your shell); without one it transcribes and skips the summary.
-
-> Building from source instead? See [Setup & configuration](#setup--configuration). To
-> reproduce the released executable yourself, see [Building the executable](#building-the-executable).
+If you want to explore this project even further, you can build and run this from source. Follow the procedure below.
 
 ---
 
-## Why this exists
-
-You sit through a lot of spoken content worth keeping: tutoring classes, lectures, Zoom
-meetings, stand-ups. Taking notes live is distracting and lossy. This project lets you:
-
-1. **Record** the session (built-in capture, or bring your own `.mp3`/`.wav`/`.m4a`).
-2. **Transcribe** it to text on your own GPU/CPU — private, free, multilingual.
-3. **Summarize** the transcript into structured notes (topics, takeaways, action items).
-
-Recording and transcription are **fully local**. Only the optional summarize step sends text
-(the transcript) to a cloud LLM.
-
----
-
-## Quick start
+## QUICK START PROCEDURE
 
 ```powershell
-# 1. One-time setup (creates venv, installs everything, makes your .env)
+# 1. One-time setup (creates venv, installs dependencies, makes your .env)
 powershell -ExecutionPolicy Bypass -File setup.ps1
 
-# 2. (optional) open .env and paste your Anthropic API key for summaries
+# 2. (optional) open .env and paste your Anthropic API key for summaries. Again, this step is correlates to the summarization step; pasting the transcript text file into an LLM also works!
 
-# 3. Run the whole pipeline — record now, then auto transcribe + summarize
+# 3. Run the whole pipeline — record now, then auto transcribe.
 .\venv\Scripts\python.exe run.py
 ```
 
-Or just **double-click `run.bat`**. It records until you press Enter, then transcribes and
-summarizes, dropping the results in `recordings/`, `transcripts/`, and `summaries/`.
+Alternatively, if that is too complex, just double click `run.bat`. It will open a terminal window and start recording until you press Enter. Next, it automatically transcribes the audio file and summarizes it (if possible), dropping the results in `recordings/`, `transcripts/`, and `summaries/`.
 
 ---
 
-## Setup & configuration
+## Setup & Further Configuration
 
-Everything below is handled by `setup.ps1`; this section explains what it does and what you
-can tweak, so you can do it manually or troubleshoot.
+Everything below has already been handled by `setup.ps1`; this section explains what it does and what you can change, so you can do it manually or troubleshoot.
 
 ### 1. Prerequisites
-- **Windows** for the built-in recording (it uses WASAPI loopback). Transcription and
-  summarization work on any OS.
-- **Python 3.13** — install from [python.org](https://www.python.org/downloads/) and check
-  "Add Python to PATH" during install.
+
+- **Windows** for the built-in recording (it uses WASAPI loopback). Transcription and summarization work on any OS. If you're on a different OS like linux or mac, it is reccomended that you record audio with open source software like OBS.
+- **Python 3.13** — install from [python.org](https://www.python.org/downloads/) and check "Add Python to PATH" during install. Newer versions of python should work, but python 3.13 is the best option as this is what version the project was built off of.
 - *(Optional)* an **NVIDIA GPU** for fast transcription. No GPU (or an AMD GPU) is fine — it
   falls back to CPU automatically.
 
-### 2. Create the environment & install dependencies
+### 2. Environment creation + dependencies
+
 ```powershell
 python -m venv venv
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
 The `large-v3` Whisper model (~3 GB) downloads automatically the first time you transcribe and
 is cached after that.
 
-### 3. API key for summaries (optional)
+### 3. Summary
+
 Summaries use Claude. Copy `.env.example` to `.env` and add your key (from
 [console.anthropic.com](https://console.anthropic.com)):
+
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
-No key? Just run with `--no-summarize` to get recordings + transcripts only.
 
-### 4. Choose your transcription model / device
+If you don't have a key, run with `--no-summarize` to get recording + transcript. You can then paste the transcript text file into an LLM chatbox.
+
+### 4. Transcription model
+
 The defaults work for most people (auto-detect GPU, best model). Override per run with flags,
 or persistently in `.env`:
 
@@ -110,21 +84,25 @@ or persistently in `.env`:
 | Summary model | `CLAUDE_MODEL` | `--claude-model` | any Anthropic model id |
 
 **Which to pick:**
+
 - **NVIDIA GPU:** leave defaults (`auto` → CUDA, `large-v3`). Fast and most accurate.
 - **No GPU / AMD GPU / Mac:** it auto-falls back to CPU. `large-v3` on CPU is accurate but
   slow (~real-time); for quicker results use a smaller model, e.g. `--model medium` or
   `--model small`. (faster-whisper's GPU backend is NVIDIA-only, so AMD GPUs use the CPU.)
 
 Example:
+
 ```powershell
 .\venv\Scripts\python.exe run.py --device cpu --model medium
 ```
 
-### 5. CUDA libraries (NVIDIA only)
+### 5. CUDA Libraries
+
 The GPU path needs cuBLAS / cuDNN, which ship as the `nvidia-cublas-cu12` and
 `nvidia-cudnn-cu12` pip packages (already in `requirements.txt`). [transcribe.py](transcribe.py)
 locates them inside your environment automatically and adds them to the DLL search path — no
 manual path editing needed. If you ever see a "could not load cudnn" error, reinstall them:
+
 ```powershell
 .\venv\Scripts\python.exe -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
@@ -133,9 +111,7 @@ manual path editing needed. If you ever see a "could not load cudnn" error, rein
 
 ## Usage
 
-> **The easy way:** `python run.py` (or double-click `run.bat`) does record → transcribe →
-> summarize in one go. The sections below describe running each stage on its own, which is
-> handy for processing existing files or customizing a step.
+> **The easy way:** `python run.py` (or double-click `run.bat`) does record → transcribe → summarize in one go. The sections below describe running each stage on its own, which is handy for processing existing files or customizing a step.
 
 ### One-command pipeline (`run.py`)
 
@@ -147,6 +123,8 @@ python run.py --zoom           # auto-record EVERY Zoom meeting, then transcribe
 python run.py --no-summarize   # stop after transcribing (no API key needed)
 python run.py --name lesson1   # control the output base name
 ```
+
+---
 
 ## Running each tool separately
 
@@ -209,6 +187,7 @@ Stop the watcher with **Ctrl+C**. (Takes no positional arguments.)
 python watch_zoom.py                # record only
 python watch_zoom.py --transcribe   # record + transcribe each meeting
 ```
+
 > For record + transcribe **+ summarize** of every meeting, use `python run.py --zoom`.
 
 ### `transcribe.py` — audio → text
@@ -237,7 +216,7 @@ python transcribe.py recordings\lesson.wav --device cpu --model medium
 Sends the transcript to Claude and writes Markdown notes with **Main topics**, **Key
 takeaways**, **Action items / homework**, and **Questions & sticking points**. Long
 transcripts are summarized in chunks and then combined, so multi-hour sessions don't exceed
-the context window. Requires `ANTHROPIC_API_KEY` (see [Setup](#3-api-key-for-summaries-optional)).
+the context window. Requires `ANTHROPIC_API_KEY` (see [Setup](#3-summary)).
 
 `python summarize.py <input> [options]`
 
@@ -303,32 +282,9 @@ python run.py --device cpu --model medium
 
 ---
 
-## Project layout
-
-```
-audio_transcribe/
-├── run.py               # ONE-COMMAND pipeline: record -> transcribe -> summarize
-├── run.bat              # double-click launcher for run.py
-├── setup.ps1            # one-time setup (venv + deps + .env)
-├── recorder.py          # capture system audio + mic to a WAV (OBS-style)
-├── watch_zoom.py        # auto-record Zoom meetings on detection
-├── transcribe.py        # transcribe audio -> timestamped text (faster-whisper)
-├── summarize.py         # transcript -> Markdown notes (Claude)
-├── requirements.txt     # Python dependencies
-├── pyinstaller_entry.py # entry point for the bundled .exe (CPU defaults)
-├── audio_transcribe.spec# PyInstaller build recipe for the release exe
-├── .env.example         # template for API key + optional config
-├── recordings/          # captured audio (gitignored)
-├── transcripts/         # generated transcripts (gitignored)
-├── summaries/           # generated notes
-└── venv/                # Python virtual environment
-```
-
----
-
 ## Building the executable
 
-The [downloadable release](#-download--run-no-setup) is built with
+The [downloadable release](https://github.com/eric-feng14/audio_transcribe/releases/latest) is built with
 [PyInstaller](https://pyinstaller.org/) from [pyinstaller_entry.py](pyinstaller_entry.py)
 (a thin wrapper that defaults the bundled app to CPU + the `small` model) using
 [audio_transcribe.spec](audio_transcribe.spec). To reproduce it:
@@ -343,14 +299,6 @@ The app lands in `dist\audio_transcribe\` (a single folder with `audio_transcrib
 that folder to produce the release asset. The CUDA libraries are intentionally **not** bundled
 (they're multiple GB), which is why the prebuilt exe runs on CPU; running from source still
 uses your GPU automatically.
-
----
-
-## Privacy & consent
-
-Recording and transcription run entirely on your machine. The **summarize** step sends the
-transcript text to Anthropic — avoid it for sensitive recordings, or swap in a local model
-(e.g. [Ollama](https://ollama.com)). Always make sure you have consent to record other people.
 
 ---
 
