@@ -30,7 +30,7 @@ If you want to explore this project even further, you can build and run this fro
 # 1. One-time setup (creates venv, installs dependencies, makes your .env)
 powershell -ExecutionPolicy Bypass -File setup.ps1
 
-# 2. (optional) open .env and paste your Anthropic API key for summaries. Again, this step is correlates to the summarization step; pasting the transcript text file into an LLM also works!
+# 2. (optional) open .env and paste your Anthropic API key for summaries. Again, this step correlates to the summarization step; pasting the transcript text file into an LLM also works!
 
 # 3. Run the whole pipeline — record now, then auto transcribe.
 .\venv\Scripts\python.exe run.py
@@ -243,7 +243,9 @@ python summarize.py transcripts\french_0607.txt -o summaries\french\french_0607.
 
 ---
 
-## How recording works (OBS-grade audio)
+## ADDITIONAL INFORMATION (if you're interested in learning more about the project)
+
+### How recording works (OBS-grade audio)
 
 The recorder is built to be reliable for long, multi-hour sessions:
 
